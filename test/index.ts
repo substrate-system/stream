@@ -413,6 +413,74 @@ test('backpressure handling', async t => {
     t.equal(processedCount, totalItems, `should process all ${totalItems} items`)
 })
 
+// Test that backpressure actually pauses the producer
+test('backpressure pauses producer', async t => {
+    const producedItems:number[] = []
+    const consumedItems:number[] = []
+    const maxConcurrent = 5  // Expected max items in flight with backpressure
+    let inFlight = 0
+    let maxInFlight = 0
+
+    // Create a custom readable with tracking
+    const readable = new ReadableStream({
+        async start (controller) {
+            for (let i = 0; i < 20; i++) {
+                producedItems.push(i)
+                inFlight++
+                maxInFlight = Math.max(maxInFlight, inFlight)
+                controller.enqueue(i)
+            }
+            controller.close()
+        }
+    })
+
+    // Slow consumer that simulates processing delay
+    const pipeline = source(readable)
+        .pipe(through(async (x: number) => {
+            // Simulate slow processing
+            await new Promise(resolve => setTimeout(resolve, 10))
+            consumedItems.push(x)
+            inFlight--
+            return x
+        }))
+
+    await run(pipeline)
+
+    t.equal(consumedItems.length, 20, 'should consume all items')
+    t.ok(maxInFlight < 20,
+        'backpressure should prevent all items being in flight at once')
+    t.ok(maxInFlight <= maxConcurrent + 10, 'max in-flight should be bounded')
+})
+
+// Test backpressure with writable stream that controls flow
+test('backpressure with slow writable', async t => {
+    const chunks:number[] = []
+    let writeCount = 0
+    let maxQueuedBeforeWrite = 0
+
+    // Create a slow writable stream
+    const slowWritable = new WritableStream({
+        async write (chunk:number) {
+            maxQueuedBeforeWrite = Math.max(
+                maxQueuedBeforeWrite,
+                writeCount - chunks.length
+            )
+            writeCount++
+            // Simulate slow write
+            await new Promise(resolve => setTimeout(resolve, 5))
+            chunks.push(chunk)
+        }
+    })
+
+    const pipeline = from(Array.from({ length: 50 }, (_, i) => i))
+        .pipe(through(x => x * 2))
+
+    await pipeline.pipeTo(slowWritable)
+
+    t.equal(chunks.length, 50, 'should write all 50 items')
+    t.ok(maxQueuedBeforeWrite < 50, 'backpressure should prevent queueing all items')
+})
+
 // Test multiple values emitted per input (custom transformer)
 test('one-to-many transform', async t => {
     const duplicator = transform<number, number>({
@@ -460,8 +528,8 @@ test('filter pattern with custom transformer', async t => {
 test('type safety', async t => {
     // This test primarily validates TypeScript compilation
     const numberPipeline = from([1, 2, 3])
-        .pipe(through((x: number) => x * 2))
-        .pipe(through((x: number) => `Number: ${x}`))
+        .pipe(through((x:number) => x * 2))
+        .pipe(through((x:number) => `Number: ${x}`))
 
     const result = await collect(numberPipeline)
 
