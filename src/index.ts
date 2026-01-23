@@ -171,7 +171,7 @@ export function transform<I, O> (
 }
 
 /**
- * Helper to create a readable stream from an array or iterable
+ * Create a readable stream from an array or iterable.
  */
 export function from<T> (
     iterable:Iterable<T>|AsyncIterable<T>

@@ -38,11 +38,15 @@ test('text processing', async t => {
     })
 
     const pipeline = source(readable)
-        .pipe(through((text: string) => text.split('\n')))
-        .pipe(through((lines: string[]) => lines.map((line: string) => line.trim())))
-        .pipe(through((lines: string[]) => lines.map((line: string) => line.toUpperCase())))
+        .pipe(through((text:string) => text.split('\n')))
+        .pipe(through((lines:string[]) => {
+            return lines.map((line: string) => line.trim())
+        }))
+        .pipe(through((lines:string[]) => {
+            return lines.map((line: string) => line.toUpperCase())
+        }))
 
-    const results: string[][] = []
+    const results:string[][] = []
     await pipeline.pipeTo(new WritableStream({
         write (lines: string[]) {
             results.push(lines)
@@ -111,7 +115,10 @@ test('file processing with flush', async t => {
 // Example 5: Custom Transformer (splitter)
 test('custom transformer - split characters', async t => {
     const splitter = transform<string, string>({
-        transform (chunk: string, controller: TransformStreamDefaultController<string>) {
+        transform (
+            chunk:string,
+            controller:TransformStreamDefaultController<string>
+        ) {
             for (const char of chunk) {
                 controller.enqueue(char)
             }
@@ -206,9 +213,13 @@ test('sink wrapper', async t => {
     const sinkStream = sink(writable)
 
     // Sink should throw when trying to pipe from it
-    t.throws(() => {
-        sinkStream.pipe(through(x => x))
-    }, /Cannot pipe from a sink stream/, 'should throw error when piping from sink')
+    t.throws(
+        () => {
+            sinkStream.pipe(through(x => x))
+        },
+        /Cannot pipe from a sink stream/,
+        'should throw error when piping from sink'
+    )
 
     // Sink should throw when trying to pipeTo from it
     try {
@@ -216,7 +227,11 @@ test('sink wrapper', async t => {
         t.fail('should have thrown error')
     } catch (error) {
         t.ok(error instanceof Error, 'should throw error')
-        t.equal((error as Error).message, 'Cannot pipeTo from a sink stream', 'error message should match')
+        t.equal(
+            (error as Error).message,
+            'Cannot pipeTo from a sink stream',
+            'error message should match'
+        )
     }
 })
 
@@ -305,11 +320,14 @@ test('transform with flush callback', async t => {
     let lastValue: number | null = null
 
     const transformWithFlush = transform<number, number>({
-        transform (chunk: number, controller: TransformStreamDefaultController<number>) {
+        transform (
+            chunk:number,
+            controller:TransformStreamDefaultController<number>
+        ) {
             lastValue = chunk
             controller.enqueue(chunk * 2)
         },
-        flush (controller: TransformStreamDefaultController<number>) {
+        flush (controller:TransformStreamDefaultController<number>) {
             flushCalled = true
             // Emit one final value
             if (lastValue !== null) {
@@ -322,7 +340,8 @@ test('transform with flush callback', async t => {
     const result = await collect(pipeline)
 
     t.ok(flushCalled, 'flush should be called')
-    t.equal(result.length, 4, 'should have 4 results (3 transformed + 1 from flush)')
+    t.equal(result.length, 4,
+        'should have 4 results (3 transformed + 1 from flush)')
     t.equal(result[0], 2, 'first transformed value')
     t.equal(result[1], 4, 'second transformed value')
     t.equal(result[2], 6, 'third transformed value')
@@ -347,7 +366,8 @@ test('error handling in flush callback', async t => {
     } catch (error) {
         errorCaught = true
         t.ok(error instanceof Error, 'should catch error')
-        t.equal((error as Error).message, 'Flush error', 'error message should match')
+        t.equal((error as Error).message, 'Flush error',
+            'error message should match')
     }
 
     t.ok(errorCaught, 'error should be caught')
@@ -396,7 +416,10 @@ test('backpressure handling', async t => {
 // Test multiple values emitted per input (custom transformer)
 test('one-to-many transform', async t => {
     const duplicator = transform<number, number>({
-        transform (chunk: number, controller: TransformStreamDefaultController<number>) {
+        transform (
+            chunk:number,
+            controller:TransformStreamDefaultController<number>
+        ) {
             controller.enqueue(chunk)
             controller.enqueue(chunk)
         }
@@ -412,7 +435,10 @@ test('one-to-many transform', async t => {
 // Test filter pattern
 test('filter pattern with custom transformer', async t => {
     const filter = transform<number, number>({
-        transform (chunk: number, controller: TransformStreamDefaultController<number>) {
+        transform (
+            chunk:number,
+            controller:TransformStreamDefaultController<number>
+        ) {
             if (chunk > 2) {
                 controller.enqueue(chunk)
             }

@@ -10,7 +10,7 @@
 [![license](https://img.shields.io/badge/license-Big_Time-blue?style=flat-square)](LICENSE)
 
 
-Use the native browser [stream API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API),
+Use the native browser [streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API),
 but with a nicer wrapper.
 
 [See a live demo](https://substrate-system.github.io/stream/)
@@ -20,8 +20,18 @@ but with a nicer wrapper.
 <!-- toc -->
 
 - [Install](#install)
-- [Example](#example)
-  * [JS](#js)
+- [Examples](#examples)
+  * [Simple Transform Chain](#simple-transform-chain)
+  * [Text Processing](#text-processing)
+  * [JSON Processing](#json-processing)
+  * [File Processing with Flush](#file-processing-with-flush)
+- [Comparison with Raw TransformStream API](#comparison-with-raw-transformstream-api)
+  * [The Awkward Way (Native API)](#the-awkward-way-native-api)
+  * [The Nice Way (This API)](#the-nice-way-this-api)
+- [Advanced: Custom Transformer](#advanced-custom-transformer)
+- [Real-World Example: Processing Large CSV](#real-world-example-processing-large-csv)
+- [Example: Backpressure in Action](#example-backpressure-in-action)
+- [Helper: Filter Transform](#helper-filter-transform)
 - [Modules](#modules)
   * [ESM](#esm)
   * [Common JS](#common-js)
@@ -33,8 +43,6 @@ but with a nicer wrapper.
 
 ## Install
 
-Installation instructions
-
 ```sh
 npm i -S @substrate-system/stream
 ```
@@ -44,7 +52,7 @@ npm i -S @substrate-system/stream
 ### Simple Transform Chain
 
 ```ts
-import { from, through, collect } from './stream-pipe';
+import { from, through, collect } from '@substrate-system/stream';
 
 // Create a pipeline that transforms numbers
 const pipeline = from([1, 2, 3, 4, 5])
@@ -61,7 +69,7 @@ console.log(result);
 ### Text Processing
 
 ```typescript
-import { source, through, sink } from './stream-pipe';
+import { source, through, sink } from '@substrate-system/stream';
 
 // Fetch and process text line by line
 const response = await fetch('data.txt');
@@ -81,7 +89,7 @@ await pipeline.pipeTo(new WritableStream({
 ### JSON Processing
 
 ```typescript
-import { from, through, collect } from './stream-pipe';
+import { from, through, collect } from '@substrate-system/stream';
 
 const users = [
   { name: 'Alice', age: 30 },
@@ -102,7 +110,7 @@ console.log(adults);
 ### File Processing with Flush
 
 ```typescript
-import { through, from, collect } from './stream-pipe';
+import { through, from, collect } from '@substrate-system/stream';
 
 // Batch processing with flush
 let batch: string[] = [];
@@ -131,9 +139,9 @@ const batches = await collect(pipeline);
 
 ## Comparison with Raw TransformStream API
 
-### ❌ The Awkward Way (Native API)
+### The Awkward Way (Native API)
 
-```typescript
+```ts
 // Native TransformStream API - verbose and awkward
 const response = await fetch('data.json');
 
@@ -171,9 +179,9 @@ while (true) {
 }
 ```
 
-### ✅ The Nice Way (This API)
+### The Nice Way (This API)
 
-```typescript
+```ts
 // With stream-pipe - clean and readable
 const response = await fetch('data.json');
 
@@ -187,10 +195,11 @@ const results = await collect(pipeline);
 
 ## Advanced: Custom Transformer
 
-If you need more control (e.g., emitting multiple values per input), use the full `transform()` with a Transformer object:
+If you need more control (e.g., emitting multiple values per input),
+use the full `transform()` with a Transformer object:
 
 ```typescript
-import { transform, from, collect } from './stream-pipe';
+import { transform, from, collect } from '@substrate-system/stream';
 
 // Split each string into individual characters
 const splitter = transform<string, string>({
@@ -210,8 +219,8 @@ console.log(chars);
 
 ## Real-World Example: Processing Large CSV
 
-```typescript
-import { source, through, run } from './stream-pipe';
+```ts
+import { source, through, run } from '@substrate-system/stream';
 
 const response = await fetch('large-data.csv');
 
@@ -243,8 +252,8 @@ await pipeline.pipeTo(new WritableStream({
 
 ## Example: Backpressure in Action
 
-```typescript
-import { from, through } from './stream-pipe';
+```ts
+import { from, through } from '@substrate-system/stream';
 
 // Slow processor - backpressure will prevent memory buildup
 const slowProcessor = through(async (x: number) => {
@@ -266,38 +275,47 @@ await pipeline.pipeTo(new WritableStream({
 
 ## Helper: Filter Transform
 
-Since filtering is common, here's a reusable helper:
+Since filtering is common, there is a reusable helper:
 
-```typescript
-import { through } from './stream-pipe';
+```ts
+import { through } from '@substrate-system/stream';
 
-export function filter<T>(predicate: (item: T) => boolean | Promise<boolean>) {
+export function filter<T>(predicate:(item:T) => boolean|Promise<boolean>) {
   return transform<T | null, T>({
     async transform(chunk, controller) {
       if (chunk !== null && await predicate(chunk)) {
         controller.enqueue(chunk);
       }
-      // Don't enqueue if predicate is false - this filters it out
+      // Don't enqueue if predicate is false
+      // This filters it out
     }
   });
 }
 
-// Usage:
 const pipeline = from([1, 2, 3, 4, 5])
   .pipe(filter(x => x > 2))
   .pipe(through(x => x * 2));
 
 const result = await collect(pipeline);
-console.log(result); // [6, 8, 10]
+console.log(result);  // [6, 8, 10]
 ```
 
 ## Modules
 
-This exposes ESM and common JS via [package.json `exports` field](https://nodejs.org/api/packages.html#exports).
+This exposes ESM and common JS via
+[package.json `exports` field](https://nodejs.org/api/packages.html#exports).
 
 ### ESM
 ```js
-import '@substrate-system/stream'
+import {
+    from,
+    through,
+    collect,
+    source,
+    sink,
+    transform,
+    run
+} from '@substrate-system/stream'
 ```
 
 ### Common JS
@@ -311,19 +329,10 @@ accessible to your web server, then link to them in HTML.
 
 #### copy
 ```sh
-cp ./node_modules/@substrate-system/stream/dist/module.min.js ./public
+cp ./node_modules/@substrate-system/stream/dist/index.min.js ./public/stream.min.js
 ```
 
 #### HTML
 ```html
-<script type="module" src="./module.min.js"></script>
+<script type="module" src="./stream.min.js"></script>
 ```
-
-
-
-
-
-
-
-
-
