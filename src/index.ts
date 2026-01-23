@@ -31,32 +31,16 @@ export function source<R> (readable:ReadableStream<R>):PipeableStream<R, never> 
             return {
                 readable: pipedReadable,
                 writable: null as any,
-                pipe<U> (another: PipeableStream<U, T>): PipeableStream<U, never> {
+                pipe<U> (another: PipeableStream<U, T>):PipeableStream<U, never> {
                     return source(pipedReadable).pipe(another)
                 },
-                async pipeTo (destination: WritableStream<T>) {
+                async pipeTo (destination:WritableStream<T>) {
                     return pipedReadable.pipeTo(destination)
                 },
             }
         },
         async pipeTo (destination:WritableStream<R>) {
             return this.readable.pipeTo(destination)
-        },
-    }
-}
-
-/**
- * Wraps a WritableStream to make it pipeable
- */
-export function sink<W> (writable:WritableStream<W>):PipeableStream<never, W> {
-    return {
-        readable: null as any,
-        writable,
-        pipe (): never {
-            throw new Error('Cannot pipe from a sink stream')
-        },
-        async pipeTo (): Promise<void> {
-            throw new Error('Cannot pipeTo from a sink stream')
         },
     }
 }
@@ -104,11 +88,12 @@ export function through<I, O> (
             return {
                 readable: pipedReadable,
                 writable: transformStream.writable,
-                pipe<U> (another: PipeableStream<U, T>): PipeableStream<U, I> {
+                pipe<U> (another: PipeableStream<U, T>):PipeableStream<U, I> {
                     const furtherPiped = pipedReadable.pipeThrough({
                         readable: another.readable,
                         writable: another.writable,
                     })
+
                     return {
                         readable: furtherPiped,
                         writable: transformStream.writable,
@@ -138,7 +123,7 @@ export function transform<I, O> (
     return {
         readable: transformStream.readable,
         writable: transformStream.writable,
-        pipe<T> (next: PipeableStream<T, O>): PipeableStream<T, I> {
+        pipe<T> (next: PipeableStream<T, O>):PipeableStream<T, I> {
             const pipedReadable = this.readable.pipeThrough({
                 readable: next.readable,
                 writable: next.writable,
@@ -147,7 +132,7 @@ export function transform<I, O> (
             return {
                 readable: pipedReadable,
                 writable: transformStream.writable,
-                pipe<U> (another: PipeableStream<U, T>): PipeableStream<U, I> {
+                pipe<U> (another: PipeableStream<U, T>):PipeableStream<U, I> {
                     const furtherPiped = pipedReadable.pipeThrough({
                         readable: another.readable,
                         writable: another.writable,
@@ -159,7 +144,7 @@ export function transform<I, O> (
                         pipeTo: (dest) => furtherPiped.pipeTo(dest),
                     }
                 },
-                async pipeTo (destination: WritableStream<T>) {
+                async pipeTo (destination:WritableStream<T>) {
                     return pipedReadable.pipeTo(destination)
                 },
             }
@@ -197,7 +182,7 @@ export function from<T> (
  * This will respect backpressure since we read one chunk at a time
  */
 export async function collect<T> (stream:PipeableStream<T, any>):Promise<T[]> {
-    const results: T[] = []
+    const results:T[] = []
     const reader = stream.readable.getReader()
 
     try {
@@ -226,4 +211,20 @@ export async function run<T> (stream:PipeableStream<T, any>):Promise<void> {
     } finally {
         reader.releaseLock()
     }
+}
+
+/**
+ * Creates a filter transform that only passes through items matching the predicate
+ */
+export function filter<T> (
+    predicate:(item:T) => boolean|Promise<boolean>
+):PipeableStream<T, T> {
+    return transform<T, T>({
+        async transform (chunk:T, controller:TransformStreamDefaultController<T>) {
+            if (await predicate(chunk)) {
+                controller.enqueue(chunk)
+            }
+            // Don't enqueue if predicate is false - this filters it out
+        },
+    })
 }

@@ -1,6 +1,6 @@
 # stream
 [![tests](https://img.shields.io/github/actions/workflow/status/substrate-system/stream/nodejs.yml?style=flat-square)](https://github.com/substrate-system/stream/actions/workflows/nodejs.yml)
-[![types](https://img.shields.io/npm/types/@substrate-system/icons?style=flat-square)](README.md)
+[![types](https://img.shields.io/npm/types/@substrate-system/stream?style=flat-square)](README.md)
 [![module](https://img.shields.io/badge/module-ESM%2FCJS-blue?style=flat-square)](README.md)
 [![semantic versioning](https://img.shields.io/badge/semver-2.0.0-blue?logo=semver&style=flat-square)](https://semver.org/)
 [![Common Changelog](https://nichoth.github.io/badge/common-changelog.svg)](./CHANGELOG.md)
@@ -25,13 +25,20 @@ but with a nicer wrapper.
   * [Text Processing](#text-processing)
   * [JSON Processing](#json-processing)
   * [File Processing with Flush](#file-processing-with-flush)
+- [API](#api)
+  * [from](#from)
+  * [source](#source)
+  * [through](#through)
+  * [transform](#transform)
+  * [filter](#filter)
+  * [collect](#collect)
+  * [run](#run)
 - [Comparison with Raw TransformStream API](#comparison-with-raw-transformstream-api)
   * [The Awkward Way (Native API)](#the-awkward-way-native-api)
   * [The Nice Way (This API)](#the-nice-way-this-api)
 - [Advanced: Custom Transformer](#advanced-custom-transformer)
 - [Real-World Example: Processing Large CSV](#real-world-example-processing-large-csv)
 - [Example: Backpressure in Action](#example-backpressure-in-action)
-- [Helper: Filter Transform](#helper-filter-transform)
 - [Modules](#modules)
   * [ESM](#esm)
   * [Common JS](#common-js)
@@ -68,8 +75,8 @@ console.log(result);
 
 ### Text Processing
 
-```typescript
-import { source, through, sink } from '@substrate-system/stream';
+```ts
+import { source, through } from '@substrate-system/stream';
 
 // Fetch and process text line by line
 const response = await fetch('data.txt');
@@ -89,7 +96,7 @@ await pipeline.pipeTo(new WritableStream({
 ### JSON Processing
 
 ```typescript
-import { from, through, collect } from '@substrate-system/stream';
+import { from, through, transform, collect } from '@substrate-system/stream';
 
 const users = [
   { name: 'Alice', age: 30 },
@@ -97,14 +104,20 @@ const users = [
   { name: 'Charlie', age: 35 }
 ];
 
-const pipeline = from(users)
-  .pipe(through(user => user.age >= 30 ? user : null))
-  .pipe(through(user => user?.name ?? null))
-  .pipe(through(name => name)); // In real app, add filter transform
+// Filter adults and extract names
+const filterAdults = transform<typeof users[0], string>({
+  transform(user, controller) {
+    if (user.age >= 30) {
+      controller.enqueue(user.name);
+    }
+  }
+});
+
+const pipeline = from(users).pipe(filterAdults);
 
 const adults = await collect(pipeline);
 console.log(adults);
-// ['Alice', null, 'Charlie'] - would filter nulls with proper transform
+// ['Alice', 'Charlie']
 ```
 
 ### File Processing with Flush
@@ -137,12 +150,188 @@ const pipeline = from(['a', 'b', 'c', 'd', 'e']).pipe(batcher);
 const batches = await collect(pipeline);
 ```
 
-## Comparison with Raw TransformStream API
+## API
 
-### The Awkward Way (Native API)
+### from
+
+Create a readable stream from an array or iterable (sync or async).
 
 ```ts
-// Native TransformStream API - verbose and awkward
+function from<T> (iterable:Iterable<T>|AsyncIterable<T>):PipeableStream<T, never>
+```
+
+```ts
+import { from, collect } from '@substrate-system/stream';
+
+const pipeline = from([1, 2, 3, 4, 5]);
+const result = await collect(pipeline);
+// [1, 2, 3, 4, 5]
+
+// Also works with async iterables
+async function* generator() {
+  yield 1;
+  yield 2;
+  yield 3;
+}
+
+const asyncPipeline = from(generator());
+const asyncResult = await collect(asyncPipeline);
+// [1, 2, 3]
+```
+
+### source
+
+Wrap an existing ReadableStream to make it pipeable.
+
+```ts
+function source<R> (readable:ReadableStream<R>):PipeableStream<R, never>
+```
+
+```ts
+import { source, through, collect } from '@substrate-system/stream';
+
+const response = await fetch('data.txt');
+const pipeline = source(response.body)
+  .pipe(through(chunk => new TextDecoder().decode(chunk)));
+
+const result = await collect(pipeline);
+```
+
+### through
+
+Create a simple transform that applies a function to each chunk.
+
+```ts
+function through<I, O> (
+    transformFn:(chunk:I) => O|Promise<O>,
+    flushFn?:() => void | Promise<void>
+):PipeableStream<O, I>
+```
+
+```ts
+import { from, through, collect } from '@substrate-system/stream';
+
+const pipeline = from([1, 2, 3])
+  .pipe(through(x => x * 2))
+  .pipe(through(x => x + 1));
+
+const result = await collect(pipeline);
+// [3, 5, 7]
+
+// Optional flush callback runs when stream closes
+const withFlush = through(
+  (x) => x * 2,
+  () => console.log('Stream finished!')
+);
+```
+
+### transform
+
+Create a custom transform with full control over the TransformStream API.
+
+```ts
+function transform<I, O> (transformer:Transformer<I, O>):PipeableStream<O, I>
+```
+
+```ts
+import { from, transform, collect } from '@substrate-system/stream';
+
+// One-to-many: emit multiple values per input
+const splitter = transform<string, string>({
+  transform(chunk, controller) {
+    for (const char of chunk) {
+      controller.enqueue(char);
+    }
+  }
+});
+
+const pipeline = from(['hello', 'world']).pipe(splitter);
+const result = await collect(pipeline);
+// ['h', 'e', 'l', 'l', 'o', 'w', 'o', 'r', 'l', 'd']
+
+// With flush callback
+const withFlush = transform<number, number>({
+  transform(chunk, controller) {
+    controller.enqueue(chunk * 2);
+  },
+  flush(controller) {
+    controller.enqueue(999); // Emit final value
+  }
+});
+```
+
+### filter
+
+Filter stream values based on a predicate function.
+
+```ts
+function filter<T> (
+  predicate:(item:T) => boolean|Promise<boolean>
+):PipeableStream<T, T>
+```
+
+```ts
+import { from, filter, collect } from '@substrate-system/stream';
+
+const pipeline = from([1, 2, 3, 4, 5])
+  .pipe(filter(x => x > 2));
+
+const result = await collect(pipeline);
+// [3, 4, 5]
+
+// Async predicates work too
+const asyncFilter = filter(async (x: number) => {
+  const shouldKeep = await someAsyncCheck(x);
+  return shouldKeep;
+});
+```
+
+### collect
+
+Collect all values from a stream into an array.
+
+```ts
+function collect<T> (stream:PipeableStream<T, any>):Promise<T[]>
+```
+
+```ts
+import { from, through, collect } from '@substrate-system/stream';
+
+const pipeline = from([1, 2, 3])
+  .pipe(through(x => x * 2));
+
+const result = await collect(pipeline);
+// [2, 4, 6]
+```
+
+### run
+
+Execute a stream pipeline without collecting results (for side effects only).
+
+```ts
+function run<T> (stream:PipeableStream<T, any>):Promise<void>
+```
+
+```ts
+import { from, through, run } from '@substrate-system/stream';
+
+const pipeline = from([1, 2, 3])
+  .pipe(through(x => {
+    console.log(x);
+    return x;
+  }));
+
+await run(pipeline);
+// Logs: 1, 2, 3
+// Returns: void
+```
+
+## Comparison with native `TransformStream` API
+
+### Native API
+
+```ts
+// Native TransformStream API
 const response = await fetch('data.json');
 
 const decoder = new TextDecoderStream();
@@ -165,7 +354,7 @@ const filterTransform = new TransformStream({
   }
 });
 
-// Awkward piping - can't chain nicely
+// pipe
 const stream1 = response.body.pipeThrough(decoder);
 const stream2 = stream1.pipeThrough(parseJson);
 const stream3 = stream2.pipeThrough(filterTransform);
@@ -179,16 +368,18 @@ while (true) {
 }
 ```
 
-### The Nice Way (This API)
+### `@substrate-system/stream` API
 
 ```ts
-// With stream-pipe - clean and readable
+import { source } from '@substrate-system/stream'
+
+// pipe
 const response = await fetch('data.json');
 
 const pipeline = source(response.body)
-  .pipe(through(chunk => new TextDecoder().decode(chunk)))
-  .pipe(through(text => JSON.parse(text)))
-  .pipe(through(obj => obj.active ? obj : null));
+  .pipe(through(chunk => new TextDecoder().decode(chunk)))  // buffer to string
+  .pipe(through(text => JSON.parse(text)))  // string to object
+  .pipe(through(obj => obj.active ? obj : null));  // filter based on .active
 
 const results = await collect(pipeline);
 ```
@@ -198,7 +389,7 @@ const results = await collect(pipeline);
 If you need more control (e.g., emitting multiple values per input),
 use the full `transform()` with a Transformer object:
 
-```typescript
+```ts
 import { transform, from, collect } from '@substrate-system/stream';
 
 // Split each string into individual characters
@@ -217,46 +408,51 @@ console.log(chars);
 // ['h', 'e', 'l', 'l', 'o', 'w', 'o', 'r', 'l', 'd']
 ```
 
-## Real-World Example: Processing Large CSV
+## Real-World Example
+
+Process large CSV data.
 
 ```ts
-import { source, through, run } from '@substrate-system/stream';
+import { source, through, transform } from '@substrate-system/stream';
 
 const response = await fetch('large-data.csv');
 
 interface CSVRow {
-  id: number;
-  name: string;
-  value: number;
+  id:number;
+  name:string;
+  value:number;
 }
 
+// Note: This is a simplified CSV parser for demonstration.
 const pipeline = source(response.body)
-  .pipe(through(chunk => new TextDecoder().decode(chunk)))
-  .pipe(through(text => text.split('\n')))
-  .pipe(through(line => {
-    const [id, name, value] = line.split(',');
-    return { id: parseInt(id), name, value: parseFloat(value) } as CSVRow;
+  .pipe(through(chunk => new TextDecoder().decode(chunk)))  // to string
+  .pipe(through(text => text.split('\n')))  // split each line
+  .pipe(transform<string, CSVRow>({
+    transform(line, controller) {
+      const [id, name, value] = line.split(',');
+      const row = { id: parseInt(id), name, value: parseFloat(value) };
+      if (row.value > 100) {
+        controller.enqueue(row);
+      }
+    }
   }))
-  .pipe(through(row => row.value > 100 ? row : null))
-  .pipe(through(row => row ? JSON.stringify(row) : null));
+  .pipe(through(row => JSON.stringify(row)));  // to string again
 
 await pipeline.pipeTo(new WritableStream({
   write(json) {
-    if (json) {
-      console.log(json);
-      // or send to another API, write to IndexedDB, etc.
-    }
+    console.log(json);
+    // or send to another API, write to IndexedDB, etc.
   }
 }));
 ```
 
-## Example: Backpressure in Action
+## Backpressure Example
 
 ```ts
 import { from, through } from '@substrate-system/stream';
 
 // Slow processor - backpressure will prevent memory buildup
-const slowProcessor = through(async (x: number) => {
+const slowProcessor = through(async (x:number) => {
   await new Promise(resolve => setTimeout(resolve, 100));
   return x * 2;
 });
@@ -273,33 +469,6 @@ await pipeline.pipeTo(new WritableStream({
 }));
 ```
 
-## Helper: Filter Transform
-
-Since filtering is common, there is a reusable helper:
-
-```ts
-import { through } from '@substrate-system/stream';
-
-export function filter<T>(predicate:(item:T) => boolean|Promise<boolean>) {
-  return transform<T | null, T>({
-    async transform(chunk, controller) {
-      if (chunk !== null && await predicate(chunk)) {
-        controller.enqueue(chunk);
-      }
-      // Don't enqueue if predicate is false
-      // This filters it out
-    }
-  });
-}
-
-const pipeline = from([1, 2, 3, 4, 5])
-  .pipe(filter(x => x > 2))
-  .pipe(through(x => x * 2));
-
-const result = await collect(pipeline);
-console.log(result);  // [6, 8, 10]
-```
-
 ## Modules
 
 This exposes ESM and common JS via
@@ -312,8 +481,8 @@ import {
     through,
     collect,
     source,
-    sink,
     transform,
+    filter,
     run
 } from '@substrate-system/stream'
 ```

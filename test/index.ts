@@ -4,8 +4,8 @@ import {
     through,
     collect,
     source,
-    sink,
     transform,
+    filter,
     run
 } from '../src/index.js'
 
@@ -200,41 +200,6 @@ test('source wrapper', async t => {
     t.equal(result[2], 6, 'third result should be 6')
 })
 
-// Test sink() wrapper
-test('sink wrapper', async t => {
-    const results: number[] = []
-
-    const writable = new WritableStream({
-        write (chunk: number) {
-            results.push(chunk)
-        }
-    })
-
-    const sinkStream = sink(writable)
-
-    // Sink should throw when trying to pipe from it
-    t.throws(
-        () => {
-            sinkStream.pipe(through(x => x))
-        },
-        /Cannot pipe from a sink stream/,
-        'should throw error when piping from sink'
-    )
-
-    // Sink should throw when trying to pipeTo from it
-    try {
-        await sinkStream.pipeTo(new WritableStream())
-        t.fail('should have thrown error')
-    } catch (error) {
-        t.ok(error instanceof Error, 'should throw error')
-        t.equal(
-            (error as Error).message,
-            'Cannot pipeTo from a sink stream',
-            'error message should match'
-        )
-    }
-})
-
 // Test pipeTo()
 test('pipeTo with writable stream', async t => {
     const results: number[] = []
@@ -417,20 +382,22 @@ test('backpressure handling', async t => {
 test('backpressure pauses producer', async t => {
     const producedItems:number[] = []
     const consumedItems:number[] = []
-    const maxConcurrent = 5  // Expected max items in flight with backpressure
     let inFlight = 0
     let maxInFlight = 0
+    let currentIndex = 0
 
-    // Create a custom readable with tracking
+    // Create a custom readable with tracking that uses pull() for backpressure
     const readable = new ReadableStream({
-        async start (controller) {
-            for (let i = 0; i < 20; i++) {
-                producedItems.push(i)
+        pull (controller) {
+            if (currentIndex < 20) {
+                producedItems.push(currentIndex)
                 inFlight++
                 maxInFlight = Math.max(maxInFlight, inFlight)
-                controller.enqueue(i)
+                controller.enqueue(currentIndex)
+                currentIndex++
+            } else {
+                controller.close()
             }
-            controller.close()
         }
     })
 
@@ -449,7 +416,9 @@ test('backpressure pauses producer', async t => {
     t.equal(consumedItems.length, 20, 'should consume all items')
     t.ok(maxInFlight < 20,
         'backpressure should prevent all items being in flight at once')
-    t.ok(maxInFlight <= maxConcurrent + 10, 'max in-flight should be bounded')
+    // With proper backpressure, max in-flight should be limited by the
+    // browser's internal queuing strategy (typically around 1-5 items)
+    t.ok(maxInFlight <= 10, 'max in-flight should be bounded by backpressure')
 })
 
 // Test backpressure with writable stream that controls flow
@@ -535,6 +504,34 @@ test('type safety', async t => {
 
     t.ok(typeof result[0] === 'string', 'result should be string')
     t.equal(result[0], 'Number: 2', 'transformation should work correctly')
+})
+
+// Test exported filter function
+test('exported filter function', async t => {
+    const pipeline = from([1, 2, 3, 4, 5])
+        .pipe(filter(x => x > 2))
+        .pipe(through(x => x * 2))
+
+    const result = await collect(pipeline)
+
+    t.equal(result.length, 3, 'should have 3 results after filtering')
+    t.deepEqual(result, [6, 8, 10], 'should filter and transform correctly')
+})
+
+// Test filter with async predicate
+test('filter with async predicate', async t => {
+    const asyncFilter = filter(async (x: number) => {
+        await new Promise(resolve => setTimeout(resolve, 1))
+        return x % 2 === 0
+    })
+
+    const pipeline = from([1, 2, 3, 4, 5, 6])
+        .pipe(asyncFilter)
+
+    const result = await collect(pipeline)
+
+    t.equal(result.length, 3, 'should have 3 even numbers')
+    t.deepEqual(result, [2, 4, 6], 'should filter even numbers')
 })
 
 test('all done', () => {
