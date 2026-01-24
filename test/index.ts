@@ -3,7 +3,7 @@ import {
     from,
     through,
     collect,
-    source,
+    Stream,
     transform,
     filter,
     run
@@ -37,7 +37,7 @@ test('text processing', async t => {
         }
     })
 
-    const pipeline = source(readable)
+    const pipeline = Stream(readable)
         .pipe(through((text:string) => text.split('\n')))
         .pipe(through((lines:string[]) => {
             return lines.map((line: string) => line.trim())
@@ -178,7 +178,7 @@ test('error handling in transform', async t => {
     t.ok(errorCaught, 'error should be caught')
 })
 
-// Test source() wrapper
+// Test Stream() wrapper
 test('source wrapper', async t => {
     const readable = new ReadableStream({
         start (controller) {
@@ -189,7 +189,7 @@ test('source wrapper', async t => {
         }
     })
 
-    const pipeline = source(readable)
+    const pipeline = Stream(readable)
         .pipe(through(x => x * 2))
 
     const result = await collect(pipeline)
@@ -402,7 +402,7 @@ test('backpressure pauses producer', async t => {
     })
 
     // Slow consumer that simulates processing delay
-    const pipeline = source(readable)
+    const pipeline = Stream(readable)
         .pipe(through(async (x: number) => {
             // Simulate slow processing
             await new Promise(resolve => setTimeout(resolve, 10))

@@ -1,8 +1,8 @@
 /**
- * A nicer API for browser TransformStream with proper backpressure handling
+ * A nice API for browser streams, with backpressure.
  */
 
-interface PipeableStream<R = any, W = any> {
+interface PipeableStream<R=any, W=any> {
     readable:ReadableStream<R>;
     writable:WritableStream<W>;
     pipe<T>(next:PipeableStream<T, R>):PipeableStream<T, W>;
@@ -14,9 +14,11 @@ interface TransformFunction<I, O> {
 }
 
 /**
- * Wraps a ReadableStream to make it pipeable
+ * Wrap a ReadableStream in our API.
  */
-export function source<R> (readable:ReadableStream<R>):PipeableStream<R, never> {
+export function Stream<R> (
+    readable:ReadableStream<R>
+):PipeableStream<R, never> {
     return {
         readable,
         writable: null as any,
@@ -32,7 +34,7 @@ export function source<R> (readable:ReadableStream<R>):PipeableStream<R, never> 
                 readable: pipedReadable,
                 writable: null as any,
                 pipe<U> (another: PipeableStream<U, T>):PipeableStream<U, never> {
-                    return source(pipedReadable).pipe(another)
+                    return Stream(pipedReadable).pipe(another)
                 },
                 async pipeTo (destination:WritableStream<T>) {
                     return pipedReadable.pipeTo(destination)
@@ -46,12 +48,11 @@ export function source<R> (readable:ReadableStream<R>):PipeableStream<R, never> 
 }
 
 /**
- * Creates a transform stream with a simple function
- * Similar to through2 for Node.js
+ * Create a transform stream with just a function.
  */
 export function through<I, O> (
     transformFn:TransformFunction<I, O>,
-    flushFn?:() => void | Promise<void>
+    flushFn?:()=>void|Promise<void>
 ):PipeableStream<O, I> {
     const transformer:Transformer<I, O> = {
         async transform (chunk, controller) {
@@ -97,7 +98,7 @@ export function through<I, O> (
                     return {
                         readable: furtherPiped,
                         writable: transformStream.writable,
-                        pipe: source(furtherPiped).pipe.bind(source(furtherPiped)),
+                        pipe: Stream(furtherPiped).pipe.bind(Stream(furtherPiped)),
                         pipeTo: (dest) => furtherPiped.pipeTo(dest),
                     }
                 },
@@ -113,7 +114,7 @@ export function through<I, O> (
 }
 
 /**
- * Creates a transform stream with more control
+ * Create a transform stream the long way.
  */
 export function transform<I, O> (
     transformer:Transformer<I, O>
@@ -140,7 +141,7 @@ export function transform<I, O> (
                     return {
                         readable: furtherPiped,
                         writable: transformStream.writable,
-                        pipe: source(furtherPiped).pipe.bind(source(furtherPiped)),
+                        pipe: Stream(furtherPiped).pipe.bind(Stream(furtherPiped)),
                         pipeTo: (dest) => furtherPiped.pipeTo(dest),
                     }
                 },
@@ -174,12 +175,12 @@ export function from<T> (
         },
     })
 
-    return source(readable)
+    return Stream(readable)
 }
 
 /**
- * Helper to collect all values from a stream into an array
- * This will respect backpressure since we read one chunk at a time
+ * Helper -- collect all values from a stream into an array.
+ * This will respect backpressure since we read one chunk at a time.
  */
 export async function collect<T> (stream:PipeableStream<T, any>):Promise<T[]> {
     const results:T[] = []
@@ -199,7 +200,8 @@ export async function collect<T> (stream:PipeableStream<T, any>):Promise<T[]> {
 }
 
 /**
- * Execute the stream pipeline (when you don't need to collect results)
+ * Execute the stream pipeline
+ * (for when you don't need to collect results).
  */
 export async function run<T> (stream:PipeableStream<T, any>):Promise<void> {
     const reader = stream.readable.getReader()
@@ -214,17 +216,20 @@ export async function run<T> (stream:PipeableStream<T, any>):Promise<void> {
 }
 
 /**
- * Creates a filter transform that only passes through items matching the predicate
+ * Create a filter transform. Like Array.filter, but for streams.
  */
 export function filter<T> (
     predicate:(item:T) => boolean|Promise<boolean>
 ):PipeableStream<T, T> {
     return transform<T, T>({
-        async transform (chunk:T, controller:TransformStreamDefaultController<T>) {
+        async transform (
+            chunk:T,
+            controller:TransformStreamDefaultController<T>
+        ) {
             if (await predicate(chunk)) {
                 controller.enqueue(chunk)
             }
-            // Don't enqueue if predicate is false - this filters it out
+            // Don't enqueue if predicate is falsy
         },
     })
 }

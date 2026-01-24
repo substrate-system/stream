@@ -1,4 +1,4 @@
-# stream
+# @substrate-system/stream
 [![tests](https://img.shields.io/github/actions/workflow/status/substrate-system/stream/nodejs.yml?style=flat-square)](https://github.com/substrate-system/stream/actions/workflows/nodejs.yml)
 [![types](https://img.shields.io/npm/types/@substrate-system/stream?style=flat-square)](https://www.npmjs.com/package/@substrate-system/stream)
 [![module](https://img.shields.io/badge/module-ESM%2FCJS-blue?style=flat-square)](README.md)
@@ -27,7 +27,7 @@ but with a nicer wrapper.
   * [File Processing with Flush](#file-processing-with-flush)
 - [API](#api)
   * [from](#from)
-  * [source](#source)
+  * [Stream](#stream)
   * [through](#through)
   * [transform](#transform)
   * [filter](#filter)
@@ -76,12 +76,12 @@ console.log(result);
 ### Text Processing
 
 ```ts
-import { source, through } from '@substrate-system/stream';
+import { Stream, through } from '@substrate-system/stream';
 
 // Fetch and process text line by line
 const response = await fetch('data.txt');
 
-const pipeline = source(response.body.pipeThrough(new TextDecoderStream()))
+const pipeline = Stream(response.body.pipeThrough(new TextDecoderStream()))
   .pipe(through(text => text.split('\n')))
   .pipe(through(lines => lines.map(line => line.trim())))
   .pipe(through(lines => lines.map(line => line.toUpperCase())));
@@ -179,19 +179,21 @@ const asyncResult = await collect(asyncPipeline);
 // [1, 2, 3]
 ```
 
-### source
+### Stream
 
-Wrap an existing ReadableStream to make it pipeable.
+Take a native `ReadableStream` and wrap it in our API.
+
+* Add a `.pipe` method
 
 ```ts
-function source<R> (readable:ReadableStream<R>):PipeableStream<R, never>
+function Stream<R> (readable:ReadableStream<R>):PipeableStream<R, never>
 ```
 
 ```ts
-import { source, through, collect } from '@substrate-system/stream';
+import { Stream, through, collect } from '@substrate-system/stream';
 
 const response = await fetch('data.txt');
-const pipeline = source(response.body)
+const pipeline = Stream(response.body)
   .pipe(through(chunk => new TextDecoder().decode(chunk)));
 
 const result = await collect(pipeline);
@@ -371,12 +373,12 @@ while (true) {
 ### `@substrate-system/stream` API
 
 ```ts
-import { source } from '@substrate-system/stream'
+import { Stream } from '@substrate-system/stream'
 
 // pipe
 const response = await fetch('data.json');
 
-const pipeline = source(response.body)
+const pipeline = Stream(response.body)
   .pipe(through(chunk => new TextDecoder().decode(chunk)))  // buffer to string
   .pipe(through(text => JSON.parse(text)))  // string to object
   .pipe(through(obj => obj.active ? obj : null));  // filter based on .active
@@ -413,7 +415,7 @@ console.log(chars);
 Process large CSV data.
 
 ```ts
-import { source, through, transform } from '@substrate-system/stream';
+import { Stream, through, transform } from '@substrate-system/stream';
 
 const response = await fetch('large-data.csv');
 
@@ -424,7 +426,7 @@ interface CSVRow {
 }
 
 // Note: This is a simplified CSV parser for demonstration.
-const pipeline = source(response.body)
+const pipeline = Stream(response.body)
   .pipe(through(chunk => new TextDecoder().decode(chunk)))  // to string
   .pipe(through(text => text.split('\n')))  // split each line
   .pipe(transform<string, CSVRow>({
@@ -480,7 +482,7 @@ import {
     from,
     through,
     collect,
-    source,
+    Stream,
     transform,
     filter,
     run
