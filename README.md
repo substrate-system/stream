@@ -122,11 +122,15 @@ console.log(adults);
 
 ### File Processing with Flush
 
-```typescript
+The `through` function takes a second callback, or "flush" function, that gets
+called once when the stream ends. The callback takes any remainig items,
+ie, any items at the end that do not fill a complete batch.
+
+```ts
 import { through, from, collect } from '@substrate-system/stream';
 
 // Batch processing with flush
-let batch: string[] = [];
+let batch:string[] = [];
 
 const batcher = through<string, string[]>(
   (item) => {
@@ -205,8 +209,8 @@ Create a simple transform that applies a function to each chunk.
 
 ```ts
 function through<I, O> (
-    transformFn:(chunk:I) => O|Promise<O>,
-    flushFn?:() => void | Promise<void>
+    transformFn:(chunk:I)=>O|Promise<O>,
+    flushFn?:()=>void|Promise<void>
 ):PipeableStream<O, I>
 ```
 
@@ -229,7 +233,7 @@ const withFlush = through(
 
 ### transform
 
-Create a custom transform with full control over the TransformStream API.
+Create a custom transform with full control over the `TransformStream` API.
 
 ```ts
 function transform<I, O> (transformer:Transformer<I, O>):PipeableStream<O, I>
