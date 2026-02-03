@@ -1,4 +1,5 @@
 import { test } from '@substrate-system/tapzero'
+import { pngBytes } from './util.js'
 import { S } from '../src/index.js'
 const { from } = S
 
@@ -228,7 +229,46 @@ test('collect works with chained transformations', async t => {
     t.deepEqual([...result], [2, 3, 6, 7])
 })
 
+test('stream and collect an image buffer via createDownloadStream', async t => {
+    // Simulate streaming the image in small chunks
+    const stream = createDownloadStream(pngBytes, 16, 10)
+
+    // Wrap with S and collect back into a single buffer
+    const result = await S(stream).collect()
+
+    t.ok(result instanceof Uint8Array, 'should return a Uint8Array')
+    t.equal(result.length, pngBytes.length,
+        'should have same length as original')
+    t.deepEqual([...result], [...pngBytes],
+        'bytes should match original')
+})
+
 test('all done', () => {
     // @ts-expect-error tests
     window.testsFinished = true
 })
+
+function createDownloadStream (
+    buffer:Uint8Array,
+    chunkSize:number = 1024,
+    delay:number = 50
+) {
+    let offset = 0
+
+    return new ReadableStream({
+        async pull (controller) {
+            if (offset >= buffer.byteLength) {
+                controller.close()
+                return
+            }
+
+            // Extract a slice (chunk) of the buffer
+            const chunk = buffer.slice(offset, offset + chunkSize)
+            controller.enqueue(chunk)
+            offset += chunkSize
+
+            // Introduce a pause to simulate network latency
+            await new Promise(resolve => setTimeout(resolve, delay))
+        }
+    })
+}

@@ -24,19 +24,27 @@ but with a nicer wrapper.
 - [Examples](#examples)
   * [`S` Example](#s-example)
 - [API](#api)
-  * [`S` API](#s-api)
-    + [Transform Methods](#transform-methods)
-    + [S.from](#sfrom)
-    + [scan](#scan)
-    + [Terminal Methods](#terminal-methods)
-    + [Utility](#utility)
-    + [Example](#example)
+  * [S.from](#sfrom)
+  * [`.map`](#map)
+  * [`.filter`](#filter)
+  * [`.forEach`](#foreach)
+  * [`.skip`](#skip)
+  * [`.take`](#take)
+  * [`.scan`](#scan)
+  * [`.reduce`](#reduce)
+  * [`.find`](#find)
+  * [`.some`](#some)
+  * [`.every`](#every)
+  * [`.toArray`](#toarray)
+  * [`.collect`](#collect)
+  * [`.toStream`](#tostream)
+  * [Example](#example)
 - [Modules](#modules)
   * [ESM](#esm)
   * [Common JS](#common-js)
   * [pre-built JS](#pre-built-js)
-    + [copy](#copy)
-    + [HTML](#html)
+  * [copy](#copy)
+  * [HTML](#html)
 
 <!-- tocstop -->
 
@@ -74,8 +82,6 @@ const totals = await S.from([1, 2, 3, 4])
 
 ## API
 
-### `S` API
-
 Wrap a `ReadableStream` with chainable array-like methods. This provides a
 fluent API like with arrays, but for streams. The predicate functions
 can all be `async` too.
@@ -85,22 +91,7 @@ can all be `async` too.
 function S<T> (readable:ReadableStream<T>):EnhancedStream<T>
 ```
 
-#### Transform Methods
-
-These methods return an `EnhancedStream` and can be chained:
-
-
-| Method | Description |
-|--------|-------------|
-| `map(fn)` | Transform each chunk |
-| `filter(predicate)` | Filter chunks based on a predicate |
-| `forEach(fn)` | Execute side effects (pass-through) |
-| `take(n)` | Take the first N chunks |
-| `skip(n)` | Skip the first N chunks |
-| `scan(fn, initial)` | Like reduce, but emits each intermediate value |
-
-
-#### S.from
+### S.from
 
 Create an `EnhancedStream` directly from an array or iterable:
 
@@ -128,7 +119,101 @@ const asyncResult = await S.from(generate())
 // [10, 20, 30]
 ```
 
-#### scan
+### `.map`
+
+Like `array.map`. Transform each chunk using a mapping function.
+The function can be sync or async.
+
+```ts
+map<U> (fn:(item:T) => U|Promise<U>):EnhancedStream<U>
+```
+
+```ts
+const doubled = await S.from([1, 2, 3])
+  .map(x => x * 2)
+  .toArray();
+// [2, 4, 6]
+
+// Async mapping works too
+const parsed = await S.from(['1', '2', '3'])
+  .map(async s => JSON.parse(s))
+  .toArray();
+// [1, 2, 3]
+```
+
+### `.filter`
+
+Keep only chunks that satisfy a predicate. The predicate can be sync or async.
+
+```ts
+filter (predicate:(item:T) => boolean|Promise<boolean>):EnhancedStream<T>
+```
+
+```ts
+const evens = await S.from([1, 2, 3, 4, 5, 6])
+  .filter(x => x % 2 === 0)
+  .toArray();
+  // [2, 4, 6]
+```
+
+### `.forEach`
+
+Execute a side effect for each chunk, then pass it through unchanged. The
+function can be async.
+
+```ts
+forEach (fn:(item:T) => void|Promise<void>):EnhancedStream<T>
+```
+
+```ts
+const result = await S.from([1, 2, 3])
+  .forEach(x => console.log('processing', x))
+  .map(x => x * 10)
+  .toArray();
+// logs: processing 1, processing 2, processing 3
+// [10, 20, 30]
+```
+
+### `.skip`
+
+Skip the first `n` chunks and pass through the rest.
+
+```ts
+skip (n:number):EnhancedStream<T>
+```
+
+```ts
+const skipped = await S.from([1, 2, 3, 4, 5])
+  .skip(2)
+  .toArray();
+// [3, 4, 5]
+```
+
+### `.take`
+
+Take the first `n` chunks from the stream and then terminate it. Useful for
+limiting output or short-circuiting a long or infinite stream.
+
+```ts
+take (n:number):EnhancedStream<T>
+```
+
+```ts
+// First 3 items
+const first3 = await S.from([10, 20, 30, 40, 50])
+  .take(3)
+  .toArray();
+  // [10, 20, 30]
+
+// Composable with other methods
+const result = await S.from([1, 2, 3, 4, 5, 6, 7, 8])
+  .filter(x => x % 2 === 0)   // evens: [2, 4, 6, 8]
+  .take(2)                     // first 2 evens: [2, 4]
+  .toArray();
+  // [2, 4]
+```
+
+### `.scan`
 
 Like `reduce`, but emits each intermediate accumulated value instead of only
 the final result. Useful for running totals, state machines, or any case where
@@ -168,27 +253,118 @@ const filtered = await S.from([1, 2, 3, 4, 5])
 ```
 
 
-#### Terminal Methods
+### `.reduce`
 
-These methods consume the stream and return a `Promise`:
+Reduce the stream to a single value, like `Array.prototype.reduce`. The
+function can be async.
 
-| Method | Description |
-|--------|-------------|
-| `reduce(fn, initial)` | Reduce to a single value |
-| `find(predicate)` | Find first matching chunk |
-| `some(predicate)` | Check if any chunk matches |
-| `every(predicate)` | Check if all chunks match |
-| `toArray()` | Collect all chunks into an array |
-| `collect()` | Collect and auto-concatenate (typed arrays, strings, or array) |
+```ts
+reduce<U> (fn:(acc:U, item:T) => U|Promise<U>, initial:U):Promise<U>
+```
 
-#### Utility
+```ts
+const sum = await S.from([1, 2, 3, 4])
+  .reduce((acc, x) => acc + x, 0);
+// 10
+```
 
-| Property/Method | Description |
-|-----------------|-------------|
-| `readable` | Access the underlying `ReadableStream` |
-| `toStream()` | Access the underlying `ReadableStream` |
+### `.find`
 
-#### Example
+Return the first chunk that satisfies the predicate, or `undefined` if none
+match. The predicate can be async.
+
+```ts
+find (predicate:(item:T) => boolean|Promise<boolean>):Promise<T|undefined>
+```
+
+```ts
+const found = await S.from([1, 2, 3, 4, 5])
+  .find(x => x > 3);
+// 4
+```
+
+### `.some`
+
+Return `true` if any chunk satisfies the predicate. Short-circuits on the first
+match. The predicate can be async.
+
+```ts
+some (predicate:(item:T) => boolean|Promise<boolean>):Promise<boolean>
+```
+
+```ts
+const hasEven = await S.from([1, 3, 5, 6])
+  .some(x => x % 2 === 0);
+// true
+```
+
+### `.every`
+
+Return `true` if every chunk satisfies the predicate. Short-circuits on the
+first failure. The predicate can be async.
+
+```ts
+every (predicate:(item:T) => boolean|Promise<boolean>):Promise<boolean>
+```
+
+```ts
+const allPositive = await S.from([1, 2, 3])
+  .every(x => x > 0);
+// true
+```
+
+### `.toArray`
+
+Collect all chunks into an array.
+
+```ts
+toArray ():Promise<T[]>
+```
+
+```ts
+const arr = await S.from([1, 2, 3])
+  .map(x => x * 2)
+  .toArray();
+// [2, 4, 6]
+```
+
+### `.collect`
+
+Collect chunks and auto-concatenate based on type. Typed arrays (e.g.
+`Uint8Array`) are concatenated into a single typed array, strings are joined,
+and everything else is returned as an array.
+
+```ts
+collect ():Promise<any>
+```
+
+```ts
+// Strings are joined
+const text = await S.from(['hello', ' ', 'world'])
+  .collect();
+// 'hello world'
+
+// Typed arrays are concatenated
+const buf = await S.from([new Uint8Array([1, 2]), new Uint8Array([3])])
+  .collect();
+// Uint8Array [1, 2, 3]
+```
+
+### `.toStream`
+
+Return the underlying `ReadableStream`. Useful for interop with native stream
+APIs. The `readable` property provides the same access.
+
+```ts
+toStream ():ReadableStream<T>
+```
+
+```ts
+const stream = S.from([1, 2, 3]).toStream();
+// ReadableStream<number>
+```
+
+### Example
 
 ```ts
 import { S } from '@substrate-system/stream';
@@ -252,12 +428,12 @@ require('@substrate-system/stream')
 This package exposes minified JS files too. Copy them to a location that is
 accessible to your web server, then link to them in HTML.
 
-#### copy
+### copy
 ```sh
 cp ./node_modules/@substrate-system/stream/dist/index.min.js ./public/stream.min.js
 ```
 
-#### HTML
+### HTML
 ```html
 <script type="module" src="./stream.min.js"></script>
 ```

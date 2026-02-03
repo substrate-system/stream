@@ -27,9 +27,7 @@ export class EnhancedStream<T> {
     }
 
     /**
-     * Sideeffects.
-     *
-     * @returns {EnhancedStream<T>}
+     * Side effects.
      */
     forEach (fn:(item:T) => void|Promise<void>):EnhancedStream<T> {
         const ts = new TransformStream<T, T>({
@@ -54,6 +52,7 @@ export class EnhancedStream<T> {
                 }
             },
         })
+
         return new EnhancedStream(this.readable.pipeThrough(ts))
     }
 
