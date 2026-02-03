@@ -1,12 +1,12 @@
-export class EnhancedStream<U> {
-    readonly readable:ReadableStream<U>
+export class EnhancedStream<T> {
+    readonly readable:ReadableStream<T>
 
-    constructor (readable:ReadableStream<U>) {
+    constructor (readable:ReadableStream<T>) {
         this.readable = readable
     }
 
-    map<V> (fn:(item:U) => V|Promise<V>):EnhancedStream<V> {
-        const ts = new TransformStream<U, V>({
+    map<U> (fn:(item:T) => U|Promise<U>):EnhancedStream<U> {
+        const ts = new TransformStream<T, U>({
             async transform (chunk, controller) {
                 controller.enqueue(await fn(chunk))
             },
@@ -14,8 +14,8 @@ export class EnhancedStream<U> {
         return new EnhancedStream(this.readable.pipeThrough(ts))
     }
 
-    filter (predicate:(item:U) => boolean|Promise<boolean>):EnhancedStream<U> {
-        const ts = new TransformStream<U, U>({
+    filter (predicate:(item:T) => boolean|Promise<boolean>):EnhancedStream<T> {
+        const ts = new TransformStream<T, T>({
             async transform (chunk, controller) {
                 if (await predicate(chunk)) {
                     controller.enqueue(chunk)
@@ -26,8 +26,8 @@ export class EnhancedStream<U> {
         return new EnhancedStream(this.readable.pipeThrough(ts))
     }
 
-    forEach (fn:(item:U) => void|Promise<void>):EnhancedStream<U> {
-        const ts = new TransformStream<U, U>({
+    forEach (fn:(item:T) => void|Promise<void>):EnhancedStream<T> {
+        const ts = new TransformStream<T, T>({
             async transform (chunk, controller) {
                 await fn(chunk)
                 controller.enqueue(chunk)
@@ -36,9 +36,9 @@ export class EnhancedStream<U> {
         return new EnhancedStream(this.readable.pipeThrough(ts))
     }
 
-    take (n:number):EnhancedStream<U> {
+    take (n:number):EnhancedStream<T> {
         let count = 0
-        const ts = new TransformStream<U, U>({
+        const ts = new TransformStream<T, T>({
             transform (chunk, controller) {
                 if (count < n) {
                     controller.enqueue(chunk)
@@ -52,9 +52,9 @@ export class EnhancedStream<U> {
         return new EnhancedStream(this.readable.pipeThrough(ts))
     }
 
-    skip (n:number):EnhancedStream<U> {
+    skip (n:number):EnhancedStream<T> {
         let count = 0
-        const ts = new TransformStream<U, U>({
+        const ts = new TransformStream<T, T>({
             transform (chunk, controller) {
                 if (count >= n) {
                     controller.enqueue(chunk)
@@ -65,9 +65,9 @@ export class EnhancedStream<U> {
         return new EnhancedStream(this.readable.pipeThrough(ts))
     }
 
-    scan<V> (fn:(acc:V, item:U) => V|Promise<V>, initial:V):EnhancedStream<V> {
+    scan<U> (fn:(acc:U, item:T) => U|Promise<U>, initial:U):EnhancedStream<U> {
         let acc = initial
-        const ts = new TransformStream<U, V>({
+        const ts = new TransformStream<T, U>({
             async transform (chunk, controller) {
                 acc = await fn(acc, chunk)
                 controller.enqueue(acc)
@@ -76,10 +76,10 @@ export class EnhancedStream<U> {
         return new EnhancedStream(this.readable.pipeThrough(ts))
     }
 
-    async reduce<V> (
-        fn:(acc:V, item:U) => V|Promise<V>,
-        initial:V
-    ):Promise<V> {
+    async reduce<U> (
+        fn:(acc:U, item:T) => U|Promise<U>,
+        initial:U
+    ):Promise<U> {
         let acc = initial
         const reader = this.readable.getReader()
         try {
@@ -96,8 +96,8 @@ export class EnhancedStream<U> {
     }
 
     async find (
-        predicate:(item:U) => boolean|Promise<boolean>
-    ):Promise<U|undefined> {
+        predicate:(item:T) => boolean|Promise<boolean>
+    ):Promise<T|undefined> {
         const reader = this.readable.getReader()
         try {
             while (true) {
@@ -111,7 +111,7 @@ export class EnhancedStream<U> {
     }
 
     async some (
-        predicate:(item:U) => boolean|Promise<boolean>
+        predicate:(item:T) => boolean|Promise<boolean>
     ):Promise<boolean> {
         const reader = this.readable.getReader()
         try {
@@ -126,7 +126,7 @@ export class EnhancedStream<U> {
     }
 
     async every (
-        predicate:(item:U) => boolean|Promise<boolean>
+        predicate:(item:T) => boolean|Promise<boolean>
     ):Promise<boolean> {
         const reader = this.readable.getReader()
         try {
@@ -140,8 +140,8 @@ export class EnhancedStream<U> {
         }
     }
 
-    async toArray ():Promise<U[]> {
-        const results:U[] = []
+    async toArray ():Promise<T[]> {
+        const results:T[] = []
         const reader = this.readable.getReader()
         try {
             while (true) {
@@ -156,7 +156,7 @@ export class EnhancedStream<U> {
     }
 
     async collect ():Promise<any> {
-        const chunks:U[] = []
+        const chunks:T[] = []
         const reader = this.readable.getReader()
         try {
             while (true) {
@@ -202,7 +202,7 @@ export class EnhancedStream<U> {
         return chunks
     }
 
-    toStream ():ReadableStream<U> {
+    toStream ():ReadableStream<T> {
         return this.readable
     }
 }
