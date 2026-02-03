@@ -26,6 +26,11 @@ export class EnhancedStream<T> {
         return new EnhancedStream(this.readable.pipeThrough(ts))
     }
 
+    /**
+     * Sideeffects.
+     *
+     * @returns {EnhancedStream<T>}
+     */
     forEach (fn:(item:T) => void|Promise<void>):EnhancedStream<T> {
         const ts = new TransformStream<T, T>({
             async transform (chunk, controller) {
