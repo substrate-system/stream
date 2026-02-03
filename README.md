@@ -10,7 +10,8 @@
 [![license](https://img.shields.io/badge/license-Big_Time-blue?style=flat-square)](LICENSE)
 
 
-Use the native browser [streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API),
+Use the native browser
+[streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API),
 but with a nicer wrapper.
 
 [See a live demo](https://substrate-system.github.io/stream/)
@@ -28,6 +29,7 @@ but with a nicer wrapper.
 - [API](#api)
   * [from](#from)
   * [Stream](#stream)
+  * [S](#s)
   * [through](#through)
   * [transform](#transform)
   * [filter](#filter)
@@ -201,6 +203,111 @@ const pipeline = Stream(response.body)
   .pipe(through(chunk => new TextDecoder().decode(chunk)));
 
 const result = await collect(pipeline);
+```
+
+### S
+
+Wrap a `ReadableStream` with chainable array-like methods. This provides a
+fluent API similar to JavaScript arrays, but for streams.
+
+
+```ts
+function S<T> (readable:ReadableStream<T>):EnhancedStream<T>
+```
+
+#### S.from
+
+Create an `EnhancedStream` directly from an array or iterable:
+
+```ts
+S.from<T>(iterable:Iterable<T>|AsyncIterable<T>):EnhancedStream<T>
+```
+
+```ts
+// Instead of: S(from([1, 2, 3]).readable)
+// You can use:
+const result = await S.from([1, 2, 3])
+  .filter(x => x > 1)
+  .map(x => x * 2)
+  .toArray();
+// [4, 6]
+
+// Works with async iterables too
+async function* generate() {
+  yield 1;
+  yield 2;
+  yield 3;
+}
+
+const asyncResult = await S.from(generate())
+  .map(x => x * 10)
+  .toArray();
+// [10, 20, 30]
+```
+
+#### Transform Methods
+
+These methods return an `EnhancedStream` and can be chained:
+
+| Method | Description |
+|--------|-------------|
+| `map(fn)` | Transform each chunk |
+| `filter(predicate)` | Filter chunks based on a predicate |
+| `forEach(fn)` | Execute side effects (pass-through) |
+| `take(n)` | Take the first N chunks |
+| `skip(n)` | Skip the first N chunks |
+
+#### Terminal Methods
+
+These methods consume the stream and return a `Promise`:
+
+| Method | Description |
+|--------|-------------|
+| `reduce(fn, initial)` | Reduce to a single value |
+| `find(predicate)` | Find first matching chunk |
+| `some(predicate)` | Check if any chunk matches |
+| `every(predicate)` | Check if all chunks match |
+| `toArray()` | Collect all chunks into an array |
+
+#### Utility
+
+| Property/Method | Description |
+|-----------------|-------------|
+| `readable` | Access the underlying `ReadableStream` |
+| `toPipeableStream()` | Convert back to a `PipeableStream` |
+
+#### Example
+
+```ts
+import { S, from } from '@substrate-system/stream';
+
+// Chain operations like array methods
+const result = await S(from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).readable)
+  .skip(2)                    // skip first 2: [3, 4, 5, 6, 7, 8, 9, 10]
+  .filter(x => x % 2 === 0)   // keep evens: [4, 6, 8, 10]
+  .map(x => x * 2)            // double: [8, 12, 16, 20]
+  .take(3)                    // first 3: [8, 12, 16]
+  .toArray();
+
+console.log(result);
+// [8, 12, 16]
+
+// Terminal methods
+const sum = await S(from([1, 2, 3, 4]).readable)
+  .reduce((acc, x) => acc + x, 0);
+// 10
+
+const found = await S(from([1, 2, 3, 4, 5]).readable)
+  .find(x => x > 3);
+// 4
+
+const hasEven = await S(from([1, 3, 5, 6]).readable)
+  .some(x => x % 2 === 0);
+// true
+
+const allPositive = await S(from([1, 2, 3]).readable)
+  .every(x => x > 0);
+// true
 ```
 
 ### through
@@ -487,6 +594,7 @@ import {
     through,
     collect,
     Stream,
+    S,
     transform,
     filter,
     run

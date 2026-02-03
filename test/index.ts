@@ -8,6 +8,7 @@ import {
     filter,
     run
 } from '../src/index.js'
+import './methods.js'
 
 // Example 1: Simple Transform Chain
 test('simple transform chain', async t => {
