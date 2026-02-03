@@ -1,5 +1,6 @@
 import { test } from '@substrate-system/tapzero'
-import { S, from } from '../src/index.js'
+import { from } from '../src/index.js'
+import { S } from '../src/s.js'
 
 test('Can chain the method calls', async t => {
     const stream = from([1, 2, 3, 4, 5])
