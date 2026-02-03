@@ -174,3 +174,55 @@ test('complex chain', async t => {
 
     t.deepEqual(result, [8, 12, 16])
 })
+
+test('collect concatenates Uint8Array chunks into single buffer', async t => {
+    const chunk1 = new Uint8Array([1, 2, 3])
+    const chunk2 = new Uint8Array([4, 5])
+    const chunk3 = new Uint8Array([6, 7, 8, 9])
+
+    const result = await S.from([chunk1, chunk2, chunk3]).collect()
+
+    t.ok(result instanceof Uint8Array, 'should return Uint8Array')
+    t.deepEqual([...result], [1, 2, 3, 4, 5, 6, 7, 8, 9])
+})
+
+test('collect concatenates strings into single string', async t => {
+    const result = await S.from(['hello', ' ', 'world']).collect()
+
+    t.equal(result, 'hello world')
+})
+
+test('collect returns array for objects', async t => {
+    const result = await S.from([{ id: 1 }, { id: 2 }, { id: 3 }]).collect()
+
+    t.deepEqual(result, [{ id: 1 }, { id: 2 }, { id: 3 }])
+})
+
+test('collect returns array for numbers', async t => {
+    const result = await S.from([1, 2, 3]).collect()
+
+    t.deepEqual(result, [1, 2, 3])
+})
+
+test('collect returns empty array for empty stream', async t => {
+    const result = await S.from([]).collect()
+
+    t.deepEqual(result, [])
+})
+
+test('.collect with a string', async t => {
+    const res = await S.from(['hello', ' ', 'world']).collect()
+    t.equal(res, 'hello world', 'should concatenate the strings')
+})
+
+test('collect works with chained transformations', async t => {
+    const chunk1 = new Uint8Array([1, 2, 3, 4])
+    const chunk2 = new Uint8Array([5, 6, 7, 8])
+
+    const result = await S.from([chunk1, chunk2])
+        .map(chunk => chunk.slice(1, 3))
+        .collect()
+
+    t.ok(result instanceof Uint8Array, 'should return Uint8Array')
+    t.deepEqual([...result], [2, 3, 6, 7])
+})
