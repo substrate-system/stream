@@ -137,6 +137,31 @@ test('every returns false when any fail', async t => {
     t.equal(result, false)
 })
 
+test('scan emits intermediate accumulated values', async t => {
+    const result = await S.from([1, 2, 3])
+        .scan((acc, x) => acc + x, 0)
+        .toArray()
+
+    t.deepEqual(result, [1, 3, 6], 'should emit running totals')
+})
+
+test('scan with initial value', async t => {
+    const result = await S.from([1, 2, 3])
+        .scan((acc, x) => acc + x, 10)
+        .toArray()
+
+    t.deepEqual(result, [11, 13, 16], 'should start from initial value')
+})
+
+test('scan can be chained', async t => {
+    const result = await S.from([1, 2, 3, 4])
+        .scan((acc, x) => acc + x, 0)
+        .filter(x => x > 3)
+        .toArray()
+
+    t.deepEqual(result, [6, 10], 'should filter scan results')
+})
+
 test('complex chain', async t => {
     const stream = from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     const result = await S(stream.readable)

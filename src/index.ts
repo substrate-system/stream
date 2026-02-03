@@ -255,6 +255,9 @@ export interface EnhancedStream<T> {
     /** Skip the first N chunks. */
     skip(n:number):EnhancedStream<T>;
 
+    /** Like reduce, but emits each intermediate accumulated value. */
+    scan<U>(fn:(acc:U, item:T) => U|Promise<U>, initial:U):EnhancedStream<U>;
+
     /** Reduce to a single value. Terminal operation. */
     reduce<U>(fn:(acc:U, item:T) => U|Promise<U>, initial:U):Promise<U>;
 
@@ -366,6 +369,17 @@ function createEnhanced<U> (r:ReadableStream<U>):EnhancedStream<U> {
                         controller.enqueue(chunk)
                     }
                     count++
+                },
+            })
+            return createEnhanced(r.pipeThrough(ts))
+        },
+
+        scan<V> (fn:(acc:V, item:U) => V|Promise<V>, initial:V):EnhancedStream<V> {
+            let acc = initial
+            const ts = new TransformStream<U, V>({
+                async transform (chunk:U, controller:TransformStreamDefaultController<V>) {
+                    acc = await fn(acc, chunk)
+                    controller.enqueue(acc)
                 },
             })
             return createEnhanced(r.pipeThrough(ts))

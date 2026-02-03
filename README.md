@@ -23,13 +23,19 @@ but with a nicer wrapper.
 - [Install](#install)
 - [Examples](#examples)
   * [Simple Transform Chain](#simple-transform-chain)
+  * [S Example](#s-example)
   * [Text Processing](#text-processing)
   * [JSON Processing](#json-processing)
   * [File Processing with Flush](#file-processing-with-flush)
 - [API](#api)
   * [from](#from)
   * [Stream](#stream)
-  * [S](#s)
+  * [S API](#s-api)
+    + [S.from](#sfrom)
+    + [Transform Methods](#transform-methods)
+    + [Terminal Methods](#terminal-methods)
+    + [Utility](#utility)
+    + [Example](#example)
   * [through](#through)
   * [transform](#transform)
   * [filter](#filter)
@@ -45,6 +51,8 @@ but with a nicer wrapper.
   * [ESM](#esm)
   * [Common JS](#common-js)
   * [pre-built JS](#pre-built-js)
+    + [copy](#copy)
+    + [HTML](#html)
 
 <!-- tocstop -->
 
@@ -73,6 +81,27 @@ const result = await collect(pipeline);
 
 console.log(result);
 // ['Number: 3', 'Number: 5', 'Number: 7', 'Number: 9', 'Number: 11']
+```
+
+### S Example
+
+Create a stream with chainable methods like an Array. This is effectively an
+array that consumes time instead of space.
+
+```ts
+import { S } from '@substrate-system/stream'
+
+const result = await S.from([1, 2, 3, 4, 5, 6])
+  .filter(x => x % 2 === 0)  // keep evens: [2, 4, 6]
+  .map(x => x * 10)          // multiply: [20, 40, 60]
+  .toArray()
+// => [20, 40, 60]
+
+// Running totals with scan
+const totals = await S.from([1, 2, 3, 4])
+  .scan((acc, x) => acc + x, 0)
+  .toArray()
+// => [1, 3, 6, 10]
 ```
 
 ### Text Processing
@@ -205,7 +234,7 @@ const pipeline = Stream(response.body)
 const result = await collect(pipeline);
 ```
 
-### S
+### S API
 
 Wrap a `ReadableStream` with chainable array-like methods. This provides a
 fluent API similar to JavaScript arrays, but for streams.
@@ -214,6 +243,20 @@ fluent API similar to JavaScript arrays, but for streams.
 ```ts
 function S<T> (readable:ReadableStream<T>):EnhancedStream<T>
 ```
+
+#### Transform Methods
+
+These methods return an `EnhancedStream` and can be chained:
+
+| Method | Description |
+|--------|-------------|
+| `map(fn)` | Transform each chunk |
+| `filter(predicate)` | Filter chunks based on a predicate |
+| `forEach(fn)` | Execute side effects (pass-through) |
+| `take(n)` | Take the first N chunks |
+| `skip(n)` | Skip the first N chunks |
+| `scan(fn, initial)` | Like reduce, but emits each intermediate value |
+
 
 #### S.from
 
@@ -245,17 +288,44 @@ const asyncResult = await S.from(generate())
 // [10, 20, 30]
 ```
 
-#### Transform Methods
+#### scan
 
-These methods return an `EnhancedStream` and can be chained:
+Like `reduce`, but emits each intermediate accumulated value instead of only
+the final result. Useful for running totals, state machines, or any case where
+you need to see intermediate states.
 
-| Method | Description |
-|--------|-------------|
-| `map(fn)` | Transform each chunk |
-| `filter(predicate)` | Filter chunks based on a predicate |
-| `forEach(fn)` | Execute side effects (pass-through) |
-| `take(n)` | Take the first N chunks |
-| `skip(n)` | Skip the first N chunks |
+```ts
+scan<U>(fn:(acc:U, item:T) => U|Promise<U>, initial:U):EnhancedStream<U>
+```
+
+```ts
+// Running totals
+const totals = await S.from([1, 2, 3, 4])
+  .scan((acc, x) => acc + x, 0)
+  .toArray();
+// [1, 3, 6, 10]
+// Step by step: 0+1=1, 1+2=3, 3+3=6, 6+4=10
+
+// With different initial value
+const fromTen = await S.from([1, 2, 3])
+  .scan((acc, x) => acc + x, 10)
+  .toArray();
+// [11, 13, 16]
+
+// Building up an array
+const accumulated = await S.from(['a', 'b', 'c'])
+  .scan((acc, x) => [...acc, x], [] as string[])
+  .toArray();
+// [['a'], ['a', 'b'], ['a', 'b', 'c']]
+
+// Can be chained with other methods
+const filtered = await S.from([1, 2, 3, 4, 5])
+  .scan((acc, x) => acc + x, 0)
+  .filter(x => x > 5)
+  .toArray();
+// [6, 10, 15]
+```
+
 
 #### Terminal Methods
 
@@ -308,6 +378,17 @@ const hasEven = await S(from([1, 3, 5, 6]).readable)
 const allPositive = await S(from([1, 2, 3]).readable)
   .every(x => x > 0);
 // true
+
+// scan - like reduce but emits intermediate values
+const runningTotals = await S.from([1, 2, 3])
+  .scan((acc, x) => acc + x, 0)
+  .toArray();
+// [1, 3, 6]
+
+const withInitial = await S.from([1, 2, 3])
+  .scan((acc, x) => acc + x, 10)
+  .toArray();
+// [11, 13, 16]
 ```
 
 ### through
