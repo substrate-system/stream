@@ -86,8 +86,8 @@ console.log(result);
 
 ### S Example
 
-Create a stream with chainable methods like an Array. This is effectively an
-array that consumes time instead of space.
+Create a stream with chainable methods like an Array. The stream is effectively
+an array that consumes time instead of space.
 
 ```ts
 import { S } from '@substrate-system/stream'
