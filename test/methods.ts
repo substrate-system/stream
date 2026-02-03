@@ -17,7 +17,8 @@ test('S.from creates an EnhancedStream from an array', async t => {
         .map(x => x * 10)
         .toArray()
 
-    t.deepEqual(result, [20, 40], 'should work like from() but return EnhancedStream')
+    t.deepEqual(result, [20, 40],
+        'should work like from() but return EnhancedStream')
 })
 
 test('S.from works with async iterables', async t => {

@@ -23,7 +23,7 @@ but with a nicer wrapper.
 - [Install](#install)
 - [Examples](#examples)
   * [Simple Transform Chain](#simple-transform-chain)
-  * [S Example](#s-example)
+  * [`S` Example](#s-example)
   * [Text Processing](#text-processing)
   * [JSON Processing](#json-processing)
   * [File Processing with Flush](#file-processing-with-flush)
@@ -84,7 +84,7 @@ console.log(result);
 // ['Number: 3', 'Number: 5', 'Number: 7', 'Number: 9', 'Number: 11']
 ```
 
-### S Example
+### `S` Example
 
 Create a stream with chainable methods like an Array. The stream is effectively
 an array that consumes time instead of space.
@@ -95,8 +95,9 @@ import { S } from '@substrate-system/stream'
 const result = await S.from([1, 2, 3, 4, 5, 6])
   .filter(x => x % 2 === 0)  // keep evens: [2, 4, 6]
   .map(x => x * 10)          // multiply: [20, 40, 60]
+  .map(async x => x * 10)    // async functions (promises) are fine
   .toArray()
-// => [20, 40, 60]
+// => [200, 400, 600]
 
 // Running totals with scan
 const totals = await S.from([1, 2, 3, 4])
@@ -235,10 +236,11 @@ const pipeline = Stream(response.body)
 const result = await collect(pipeline);
 ```
 
-### S API
+### `S` API
 
 Wrap a `ReadableStream` with chainable array-like methods. This provides a
-fluent API similar to JavaScript arrays, but for streams.
+fluent API like with arrays, but for streams. The predicate functions
+can all be `async` too.
 
 
 ```ts
@@ -248,6 +250,7 @@ function S<T> (readable:ReadableStream<T>):EnhancedStream<T>
 #### Transform Methods
 
 These methods return an `EnhancedStream` and can be chained:
+
 
 | Method | Description |
 |--------|-------------|
