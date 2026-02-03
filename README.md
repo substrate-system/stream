@@ -14,8 +14,6 @@ Use the native browser
 [streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API),
 but with a nicer wrapper.
 
-[See a live demo](https://substrate-system.github.io/stream/)
-
 <details><summary><h2>Contents</h2></summary>
 
 <!-- toc -->
@@ -56,29 +54,52 @@ but with a nicer wrapper.
 npm i -S @substrate-system/stream
 ```
 
-## Examples
 
-### `S` Example
-
-Create a stream with chainable methods like an Array. The stream is effectively
-an array that consumes time instead of space.
+## Example
 
 ```ts
-import { S } from '@substrate-system/stream'
+import { S } from '@substrate-system/stream';
 
-const result = await S.from([1, 2, 3, 4, 5, 6])
-  .filter(x => x % 2 === 0)  // keep evens: [2, 4, 6]
-  .map(x => x * 10)          // multiply: [20, 40, 60]
-  .map(async x => x * 10)    // async functions (promises) are fine
-  .toArray()
-// => [200, 400, 600]
+// Chain operations like array methods
+const result = await S.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+  .skip(2)                    // skip first 2: [3, 4, 5, 6, 7, 8, 9, 10]
+  .filter(x => x % 2 === 0)   // keep evens: [4, 6, 8, 10]
+  .map(x => x * 2)            // double: [8, 12, 16, 20]
+  .take(3)                    // first 3: [8, 12, 16]
+  .toArray();
 
-// Running totals with scan
-const totals = await S.from([1, 2, 3, 4])
+console.log(result);
+// [8, 12, 16]
+
+// Terminal methods
+const sum = await S.from([1, 2, 3, 4])
+  .reduce((acc, x) => acc + x, 0);
+// 10
+
+const found = await S.from([1, 2, 3, 4, 5])
+  .find(x => x > 3);
+// 4
+
+const hasEven = await S.from([1, 3, 5, 6])
+  .some(x => x % 2 === 0);
+// true
+
+const allPositive = await S.from([1, 2, 3])
+  .every(x => x > 0);
+// true
+
+// scan - like reduce but emits intermediate values
+const runningTotals = await S.from([1, 2, 3])
   .scan((acc, x) => acc + x, 0)
-  .toArray()
-// => [1, 3, 6, 10]
+  .toArray();
+// [1, 3, 6]
+
+const withInitial = await S.from([1, 2, 3])
+  .scan((acc, x) => acc + x, 10)
+  .toArray();
+// [11, 13, 16]
 ```
+
 
 ## API
 
@@ -93,7 +114,7 @@ function S<T> (readable:ReadableStream<T>):EnhancedStream<T>
 
 ### S.from
 
-Create an `EnhancedStream` directly from an array or iterable:
+Create an `EnhancedStream` from an array or iterable:
 
 ```ts
 S.from<T>(iterable:Iterable<T>|AsyncIterable<T>):EnhancedStream<T>
@@ -143,7 +164,7 @@ const parsed = await S.from(['1', '2', '3'])
 
 ### `.filter`
 
-Keep only chunks that satisfy a predicate. The predicate can be sync or async.
+Like `array.filter` &mdash; keep only chunks that satisfy a predicate.
 
 ```ts
 filter (predicate:(item:T) => boolean|Promise<boolean>):EnhancedStream<T>
@@ -158,8 +179,7 @@ const evens = await S.from([1, 2, 3, 4, 5, 6])
 
 ### `.forEach`
 
-Execute a side effect for each chunk, then pass it through unchanged. The
-function can be async.
+For side effects.
 
 ```ts
 forEach (fn:(item:T) => void|Promise<void>):EnhancedStream<T>
@@ -362,51 +382,6 @@ toStream ():ReadableStream<T>
 ```ts
 const stream = S.from([1, 2, 3]).toStream();
 // ReadableStream<number>
-```
-
-### Example
-
-```ts
-import { S } from '@substrate-system/stream';
-
-// Chain operations like array methods
-const result = await S.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-  .skip(2)                    // skip first 2: [3, 4, 5, 6, 7, 8, 9, 10]
-  .filter(x => x % 2 === 0)   // keep evens: [4, 6, 8, 10]
-  .map(x => x * 2)            // double: [8, 12, 16, 20]
-  .take(3)                    // first 3: [8, 12, 16]
-  .toArray();
-
-console.log(result);
-// [8, 12, 16]
-
-// Terminal methods
-const sum = await S.from([1, 2, 3, 4])
-  .reduce((acc, x) => acc + x, 0);
-// 10
-
-const found = await S.from([1, 2, 3, 4, 5])
-  .find(x => x > 3);
-// 4
-
-const hasEven = await S.from([1, 3, 5, 6])
-  .some(x => x % 2 === 0);
-// true
-
-const allPositive = await S.from([1, 2, 3])
-  .every(x => x > 0);
-// true
-
-// scan - like reduce but emits intermediate values
-const runningTotals = await S.from([1, 2, 3])
-  .scan((acc, x) => acc + x, 0)
-  .toArray();
-// [1, 3, 6]
-
-const withInitial = await S.from([1, 2, 3])
-  .scan((acc, x) => acc + x, 10)
-  .toArray();
-// [11, 13, 16]
 ```
 
 ## Modules
