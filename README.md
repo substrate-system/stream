@@ -19,8 +19,7 @@ but with a nicer wrapper.
 <!-- toc -->
 
 - [Install](#install)
-- [Examples](#examples)
-  * [`S` Example](#s-example)
+- [Example](#example)
 - [API](#api)
   * [S.from](#sfrom)
   * [`.map`](#map)
@@ -36,7 +35,6 @@ but with a nicer wrapper.
   * [`.toArray`](#toarray)
   * [`.collect`](#collect)
   * [`.toStream`](#tostream)
-  * [Example](#example)
 - [Modules](#modules)
   * [ESM](#esm)
   * [Common JS](#common-js)
