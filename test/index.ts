@@ -244,8 +244,10 @@ test('stream and collect an image buffer via createDownloadStream', async t => {
 })
 
 test('all done', () => {
-    // @ts-expect-error tests
-    window.testsFinished = true
+    if (typeof window !== 'undefined') {
+        // @ts-expect-error tests
+        window.testsFinished = true
+    }
 })
 
 function createDownloadStream (
