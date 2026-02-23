@@ -35,6 +35,8 @@ but with a nicer wrapper.
   * [`.toArray`](#toarray)
   * [`.collect`](#collect)
   * [`.toStream`](#tostream)
+- [Node helpers](#node-helpers)
+  * [`toFileSink`](#tofilesink)
 - [Modules](#modules)
   * [ESM](#esm)
   * [Common JS](#common-js)
@@ -382,6 +384,28 @@ const stream = S.from([1, 2, 3]).toStream();
 // ReadableStream<number>
 ```
 
+## Node helpers
+
+Node-specific helpers are available from the `@substrate-system/stream/node`
+subpath.
+
+### `toFileSink`
+
+Create a writable web stream from a Node `FileHandle`. This is useful when
+you want to `pipeTo` a file sink.
+
+```ts
+toFileSink (fh:FileHandle):WritableStream<Uint8Array>
+```
+
+```ts
+import { open } from 'node:fs/promises'
+import { toFileSink } from '@substrate-system/stream/node'
+
+const out = await open('./result.html', 'w')
+await someReadableStreamOfBytes.pipeTo(toFileSink(out))
+```
+
 ## Modules
 
 This exposes ESM and common JS via
@@ -390,11 +414,13 @@ This exposes ESM and common JS via
 ### ESM
 ```js
 import { S, EnhancedStream } from '@substrate-system/stream'
+import { toFileSink } from '@substrate-system/stream/node'
 ```
 
 ### Common JS
 ```js
 require('@substrate-system/stream')
+require('@substrate-system/stream/node')
 ```
 
 ### pre-built JS

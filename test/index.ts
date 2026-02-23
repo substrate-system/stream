@@ -1,6 +1,7 @@
 import { test } from '@substrate-system/tapzero'
 import { pngBytes } from './util.js'
 import { S } from '../src/index.js'
+import { toFileSink } from '../src/node.js'
 const { from } = S
 
 test('Can chain the method calls', async t => {
@@ -241,6 +242,74 @@ test('stream and collect an image buffer via createDownloadStream', async t => {
         'should have same length as original')
     t.deepEqual([...result], [...pngBytes],
         'bytes should match original')
+})
+
+test('toFileSink writes all bytes and truncates on close', async t => {
+    const bytes = new Uint8Array(12)
+    const writes:Array<{
+        offset:number
+        length:number
+        position:number
+    }> = []
+    let truncatedTo:number|undefined
+    let closed = 0
+
+    const fh = {
+        async write (
+            chunk:Uint8Array,
+            offset:number,
+            length:number,
+            position:number
+        ) {
+            // Simulate partial writes to verify retry logic.
+            const bytesWritten = Math.min(length, 2)
+            bytes.set(chunk.subarray(offset, offset + bytesWritten), position)
+            writes.push({ offset, length, position })
+            return { bytesWritten }
+        },
+        async truncate (len:number = 0) {
+            truncatedTo = len
+        },
+        async close () {
+            closed++
+        }
+    }
+
+    await S.from([
+        new Uint8Array([1, 2, 3]),
+        new Uint8Array([4, 5, 6])
+    ])
+        .toStream()
+        .pipeTo(toFileSink(fh))
+
+    t.equal(truncatedTo, 6, 'should truncate to bytes written')
+    t.equal(closed, 1, 'should close handle when stream closes')
+    t.deepEqual([...bytes.slice(0, 6)], [1, 2, 3, 4, 5, 6],
+        'should write chunks in order')
+    t.ok(writes.length > 2, 'should continue writing after partial writes')
+})
+
+test('toFileSink closes file handle on abort', async t => {
+    let truncated = false
+    let closed = 0
+
+    const fh = {
+        async write () {
+            return { bytesWritten: 0 }
+        },
+        async truncate () {
+            truncated = true
+        },
+        async close () {
+            closed++
+        }
+    }
+
+    const writer = toFileSink(fh).getWriter()
+    await writer.abort(new Error('cancelled'))
+
+    t.equal(closed, 1, 'should close handle on abort')
+    t.equal(truncated, false, 'should not truncate on abort')
 })
 
 test('all done', () => {
