@@ -36,7 +36,8 @@ but with a nicer wrapper.
   * [`.collect`](#collect)
   * [`.toStream`](#tostream)
 - [Node helpers](#node-helpers)
-  * [`toFileSink`](#tofilesink)
+  * [`fromFile`](#fromfile)
+  * [`toFile`](#tofile)
 - [Modules](#modules)
   * [ESM](#esm)
   * [Common JS](#common-js)
@@ -389,21 +390,59 @@ const stream = S.from([1, 2, 3]).toStream();
 Node-specific helpers are available from the `@substrate-system/stream/node`
 subpath.
 
-### `toFileSink`
+```ts
+import { fromFile, toFile } from '@substrate-system/stream/node'
+```
 
-Create a writable web stream from a Node `FileHandle`. This is useful when
-you want to `pipeTo` a file sink.
+### `fromFile`
+
+Create a `ReadableStream` from a file path or an existing `FileHandle`. The
+returned stream has a `fileHandle` property so you can close it when done.
 
 ```ts
-toFileSink (fh:FileHandle):WritableStream<Uint8Array>
+export type StreamWithHandle = ReadableStream<Uint8Array> & {
+    fileHandle:FileHandle;
+};
+
+fromFile (input:string|FileHandle):Promise<StreamWithHandle>
 ```
 
 ```ts
-import { open } from 'node:fs/promises'
-import { toFileSink } from '@substrate-system/stream/node'
+import { fromFile } from '@substrate-system/stream/node'
 
-const out = await open('./result.html', 'w')
-await someReadableStreamOfBytes.pipeTo(toFileSink(out))
+// From a file path
+const stream = await fromFile('./data.bin')
+await stream.pipeTo(someWritableSink)
+await stream.fileHandle.close()
+
+// From an existing FileHandle
+import { open } from 'node:fs/promises'
+const fh = await open('./data.bin')
+const stream = await fromFile(fh)
+await stream.pipeTo(someWritableSink)
+await fh.close()
+```
+
+### `toFile`
+
+Create a `WritableStream` that writes bytes to a file. Accepts either a file
+path string or a `FileHandleLike` object. On close, the file is truncated to
+the number of bytes written. On abort, the handle is closed without truncating.
+
+```ts
+toFile (input:string|FileHandleLike):Promise<WritableStream<Uint8Array>>
+```
+
+```ts
+import { toFile } from '@substrate-system/stream/node'
+
+// From a file path
+await someReadableStream.pipeTo(await toFile('./result.bin'))
+
+// From an existing FileHandle
+import { open } from 'node:fs/promises'
+const fh = await open('./result.bin', 'w')
+await someReadableStream.pipeTo(await toFile(fh))
 ```
 
 ## Modules
@@ -414,7 +453,7 @@ This exposes ESM and common JS via
 ### ESM
 ```js
 import { S, EnhancedStream } from '@substrate-system/stream'
-import { toFileSink } from '@substrate-system/stream/node'
+import { fromFile, toFile } from '@substrate-system/stream/node'
 ```
 
 ### Common JS

@@ -1,3 +1,9 @@
+import { open, type FileHandle } from 'node:fs/promises'
+
+export type StreamWithHandle = ReadableStream<Uint8Array> & {
+    fileHandle:FileHandle;
+};
+
 export interface FileHandleLike {
     write (
         buffer:Uint8Array,
@@ -9,12 +15,27 @@ export interface FileHandleLike {
     close ():Promise<void>;
 }
 
+export async function fromFile (
+    input:string|FileHandle
+):Promise<StreamWithHandle> {
+    const fileHandle = typeof input === 'string' ?
+        await open(input) :
+        input
+    const stream = fileHandle.readableWebStream()
+
+    return Object.assign(stream, { fileHandle })
+}
+
 /**
  * Convert a Node file handle into a writable web stream.
  */
-export function toFileSink (
-    fh:FileHandleLike
-):WritableStream<Uint8Array> {
+export async function toFile (
+    input:string|FileHandleLike
+):Promise<WritableStream<Uint8Array>> {
+    const fh = typeof input === 'string' ?
+        await open(input, 'w') :
+        input
+
     let position = 0
 
     return new WritableStream<Uint8Array>({
