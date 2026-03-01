@@ -1,6 +1,6 @@
 {
   "name": "@substrate-system/stream",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Stream helpers for the browser",
   "type": "module",
   "exports": {
