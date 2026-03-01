@@ -1,3 +1,8 @@
+export type CollectResult<T> =
+    T extends ArrayBufferView ? T :
+    T extends string ? string :
+    T[]
+
 export class EnhancedStream<T> {
     readonly readable:ReadableStream<T>
 
@@ -159,7 +164,7 @@ export class EnhancedStream<T> {
         return results
     }
 
-    async collect ():Promise<any> {
+    async collect ():Promise<CollectResult<T>> {
         const chunks:T[] = []
         const reader = this.readable.getReader()
         try {
@@ -173,7 +178,7 @@ export class EnhancedStream<T> {
         }
 
         if (chunks.length === 0) {
-            return chunks
+            return chunks as CollectResult<T>
         }
 
         const first = chunks[0]
@@ -194,16 +199,16 @@ export class EnhancedStream<T> {
                 result.set(chunk, offset)
                 offset += (chunk as any).length
             }
-            return result
+            return result as CollectResult<T>
         }
 
         // Strings -- concatenate
         if (typeof first === 'string') {
-            return (chunks as unknown as string[]).join('')
+            return (chunks as unknown as string[]).join('') as CollectResult<T>
         }
 
         // Everything else -- array
-        return chunks
+        return chunks as CollectResult<T>
     }
 
     toStream ():ReadableStream<T> {

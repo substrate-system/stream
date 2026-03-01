@@ -235,8 +235,8 @@ const result = await S.from([1, 2, 3, 4, 5, 6, 7, 8])
 
 ### `.scan`
 
-Like `reduce`, but emits each intermediate accumulated value instead of only
-the final result. Useful for running totals, state machines, or any case where
+Like `reduce`, but emits each intermediate accumulated values instead of only
+the final result. Useful for state machines, or any case where
 you need to see intermediate states. See
 [reactivex.io/scan](https://reactivex.io/documentation/operators/scan.html)
 
@@ -249,27 +249,27 @@ scan<U>(fn:(acc:U, item:T) => U|Promise<U>, initial:U):EnhancedStream<U>
 const totals = await S.from([1, 2, 3, 4])
   .scan((acc, x) => acc + x, 0)
   .toArray();
-// [1, 3, 6, 10]
-// Step by step: 0+1=1, 1+2=3, 3+3=6, 6+4=10
+  // [1, 3, 6, 10]
+  // Step by step: 0+1=1, 1+2=3, 3+3=6, 6+4=10
 
 // With different initial value
 const fromTen = await S.from([1, 2, 3])
   .scan((acc, x) => acc + x, 10)
   .toArray();
-// [11, 13, 16]
+  // [11, 13, 16]
 
 // Building up an array
 const accumulated = await S.from(['a', 'b', 'c'])
   .scan((acc, x) => [...acc, x], [] as string[])
   .toArray();
-// [['a'], ['a', 'b'], ['a', 'b', 'c']]
+  // [['a'], ['a', 'b'], ['a', 'b', 'c']]
 
 // Can be chained with other methods
 const filtered = await S.from([1, 2, 3, 4, 5])
   .scan((acc, x) => acc + x, 0)
   .filter(x => x > 5)
   .toArray();
-// [6, 10, 15]
+  // [6, 10, 15]
 ```
 
 
