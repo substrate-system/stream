@@ -14,6 +14,9 @@ Use the native browser
 [streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API),
 but with a nicer wrapper.
 
+See [experimental-fast-webstreams](https://github.com/vercel-labs/fast-webstreams)
+for use in Node.
+
 <details><summary><h2>Contents</h2></summary>
 
 <!-- toc -->
